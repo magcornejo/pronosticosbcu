@@ -1,0 +1,72 @@
+---
+title: "Modelos ARIMA"
+author: "Magdalena Cornejo"
+date: "`r format(Sys.Date(), '%Y')`"
+lang: sp
+output: html_document
+latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Veremos cómo estimar un modelo ARIMA para la siguiente serie temporal, en frecuencia mensual, entre enero de 1980 y junio de 2020:
+
+- **soy**: precio spot de la soja en Chicago, en USD/MT. Fuente: Banco Mundial. Archivo: soy. csv
+
+```{r soy, echo=TRUE}
+soy <- read.csv("soy.csv")
+soy <- ts(soy[,2], frequency = 12, start = c(1980,1))
+```
+```{r soy2, echo=TRUE, eval=FALSE}
+plot(soy, main = "Precio internacional de la soja")
+plot(diff(log(soy)), main = "Tasa de crecimiento del precio de la soja (%)")
+```
+![](C:/Users/Magdalena Cornejo/Dropbox/Cursos/Forecasting - BCU 2020/Modulo 1/Tutoriales/www/psoy.png)
+![](C:/Users/Magdalena Cornejo/Dropbox/Cursos/Forecasting - BCU 2020/Modulo 1/Tutoriales/www/dlpsoy.png)
+
+
+**Nota**: trabajaremos con el logaritmo del precio de la soja, para estabilizar la varianza de la serie temporal.
+
+### Estacionariedad
+Anteriormente probamos que **soy** es una serie I(1). Trabajaremos con la diferencia logarítmica de esta serie para buscar algún modelo ARMA para representar el proceso estocástico subyacente.
+
+### Correlogramas
+A través de los correlogramas (gráficos de las funciones de autocorrelación) podemos visualizar la dinámica de la serie temporal y, en el mejor de los casos, nos dará un indicio respecto de qué modelo nos permitirá modelar dicha dinámica temporal.
+
+Si observamos los correlogramas correspondientes a la función de autocorrelación simple (ACF) y parcial (PACF) podemos inferir que la variación mensual del precio de la soja sigue un comportamiento autorregresivo (decae exponencialmente la ACF) de primer orden (un único rezago significativo).
+
+```{r correlogram, echo=TRUE, eval=FALSE}
+acf(diff(log(soy)), lag.max = 12, main="ACF")
+pacf(diff(log(soy)), lag.max = 12, main="PACF")
+```
+
+![](C:/Users/Magdalena Cornejo/Dropbox/Cursos/Forecasting - BCU 2020/Modulo 1/Tutoriales/www/correlogram.png)
+
+De esta forma, pasamos a la etapa de estimación del modelo AR(1) o ARIMA(1,0,0).
+
+
+### Estimación
+Si bien en este caso el modelo AR(1) podría estimarse por mínimos cuadrados ordinarios, utilizaremos la siguiente función que está disponible en R y estima por máxima verosimilitud, ya que se utiliza para cualquier modelo ARIMA.
+
+```{r ar1, echo=TRUE}
+ar1 <- arima(diff(log(soy)),order=c(1,0,0)); ar1
+```
+
+El componente autorregresivo resultó estadísticamente significativo, no así la constante, lo cual indicaría que el proceso tiene una tasa de crecimiento mensual promedio nula.
+
+### Validación
+Para validar el modelo estimado necesitamos probar que los errores son ruido blanco a través del test de Ljung-Box (1978):
+
+```{r testq, echo=TRUE}
+Box.test(ar1$residuals, lag=12, type="Ljung-Box")
+```
+
+Concluimos que no podemos rechazar la hipótesis nula de que el error del modelo está incorrelacionado respecto de sus propios rezagos (i.e. ruido blanco). De esta manera, la tasa de crecimiento mensual del precio de la soja puede ser representada a través de un AR(1).
+
+Este modelo resulta un posible candidato para representar la dinámica de esta variable, pero puede no ser el único. En cualquier caso, entre todos los posibles candidatos queremos elegir el que tenga mejor ajuste dentro de la muestra. En general, se selecciona el modelo según algún criterio de información. En el próximo tutorial profundizaremos en estos conceptos y utilizaremos un algoritmo de selección automática de modelos ARIMA en R.
+
+### Referencias:
+- Ljung, G. M. y Box, G. E. P. (1978), On a measure of lack of fit in time series models. *Biometrika* **65**, 297-303.
+
